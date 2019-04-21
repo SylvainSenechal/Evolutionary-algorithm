@@ -3,12 +3,19 @@
 let genetic
 let ctx, canvas
 let width, height
-let sizeX = 300
-let sizeY = 300
+let sizeX = 1000
+let sizeY = 1000
 let viewX = 0
 let viewY = 0
 let haut, bas, droite, gauche
+// TODO: A mettre en parametre changeables ?
 const CAMERA_SPEED = 15 // TODO: A utiliser
+const FOOD_SIZE = 5
+const FOOD_GAIN = 3
+const INIT_CREATURE_SIZE = 8
+const FOOD_LOSS_EPOCH = 100
+const SIZE_INITIAL_POPULATION = 10
+const SIZE_INITIAL_FOOD = 50
 
 const init = () => {
   width = window.innerWidth
@@ -25,12 +32,16 @@ const init = () => {
   loop()
 }
 
+// Simulation loop
 const loop = () => {
-  genetic.movePopulation()
+  genetic.movePopulation() // Move the creatures + eventually eat food close enough
+  genetic.incrementTimer() // Increment simulation timer
 
-  moveCamera()
-  genetic.draw()
-  requestAnimationFrame(loop)
+  genetic.removeDead() // Remove the dead creatures
+
+  moveCamera() // Move the camera
+  genetic.draw() // Draw the simulation
+  requestAnimationFrame(loop) // Repeat..
 }
 
 class Creature {
@@ -40,11 +51,13 @@ class Creature {
     this.y = Math.random() * sizeY
     this.speedX = 0
     this.speedY = 0
-    this.size = 50
+    this.belly = INIT_CREATURE_SIZE
     this.DNA = new Brain()
-
   }
+
 }
+
+const dst = (x1, y1, x2, y2) => Math.sqrt( (x2-x1)*(x2-x1) + (y2-y1)*(y2-y1) )
 
 class Brain {
   constructor() {
@@ -57,21 +70,24 @@ class Brain {
   }
 
   // TODO: Use log(dst) or dst ??
+  // ! plus pres => plus de chance de se rapprocher
   makeDecision(nearestFood, nearestMate, nearestEnnemi) {
     let eat = this.weights.eating * nearestFood
     let mate = this.weights.mating * nearestMate
     let fight = this.weights.fighting * nearestEnnemi
     let runAway = this.weights.runningAway * nearestEnnemi
 
-    return max des 4..
+    // return max des 4..
   }
 }
 
 class Genetic {
-  constructor(nbCreatures = 10) {
-    this.nbCreatures = nbCreatures
+  constructor() {
+    this.timer = 0
+    this.nbCreatures = SIZE_INITIAL_POPULATION
     this.population = []
     this.initPopulation()
+    this.idFood = 0
     this.food = []
     this.initFood()
   }
@@ -83,15 +99,59 @@ class Genetic {
   }
 
   initFood() {
-    for (let i = 0; i < 100; i++) {
-      this.food.push({x: Math.random() * sizeX, y: Math.random() * sizeY})
+    for (let i = 0; i < SIZE_INITIAL_FOOD; i++) {
+      this.food.push({id: this.idFood, x: Math.random() * sizeX, y: Math.random() * sizeY})
+      this.idFood++
     }
   }
 
   movePopulation() {
     this.population.forEach( creature => {
-      creature.x += creature.speedX
-      creature.y += creature.speedY
+      let nearestFood = this.nearestFood(creature)
+      // let nearestMate = genetic.nearestMate(creature)
+      // let nearestEnnemi = genetic.nearestEnnemi(creature)
+      // let target = creature.brain.makeDecision(nearestFood)
+
+      // Move creature
+      let x = nearestFood.x - creature.x
+      let y = nearestFood.y - creature.y
+      let angle = Math.atan2(y, x) * 180 / Math.PI
+
+      creature.x += Math.cos(angle * Math.PI/180) * 10/(10+creature.belly)
+      creature.y += Math.sin(angle * Math.PI/180) * 10/(10+creature.belly)
+
+      // Eat food close enough
+      let distance = dst(creature.x, creature.y, nearestFood.x, nearestFood.y)
+      if (distance < creature.belly + FOOD_SIZE) {
+        this.food = this.food.filter( food => food.id != nearestFood.id)
+        creature.belly += FOOD_GAIN
+      }
+    })
+  }
+
+
+  // TODO: Handle empty food list
+  nearestFood(creature) {
+    let nearest = this.food[0]
+    let bestDst = dst(creature.x, creature.y, nearest.x, nearest.y)
+    this.food.forEach( food => {
+      let distance = dst(creature.x, creature.y, food.x, food.y)
+      if (distance < bestDst) {
+        nearest = food
+        bestDst = distance
+      }
+    })
+    return nearest
+  }
+
+  incrementTimer() {
+    this.timer++
+    if (this.timer % FOOD_LOSS_EPOCH === 0) this.population.forEach( creature => creature.belly-- )
+  }
+
+  removeDead() {
+    this.population.forEach( (creature, index) => {
+      if (creature.belly === 0) this.population.splice(index, 1)
     })
   }
 
@@ -101,8 +161,8 @@ class Genetic {
     // Draw creatures
     this.population.forEach( creature => {
       ctx.beginPath()
-      ctx.fillStyle = creature.gender === "female" ? "#00ff00" : "#0000ff"
-      ctx.arc(creature.x + viewX, creature.y + viewY, creature.size, 0, 2*Math.PI)
+      ctx.fillStyle = creature.gender === "female" ? "#cc00aa" : "#0000dd"
+      ctx.arc(creature.x + viewX, creature.y + viewY, creature.belly, 0, 2*Math.PI)
       ctx.fill()
     })
 
@@ -110,7 +170,7 @@ class Genetic {
     ctx.strokeStyle = "#000000"
     this.food.forEach( food => {
       ctx.beginPath()
-      ctx.arc(food.x + viewX, food.y + viewY, 5, 0, 2*Math.PI)
+      ctx.arc(food.x + viewX, food.y + viewY, FOOD_SIZE, 0, 2*Math.PI)
       ctx.stroke()
     })
 
@@ -172,10 +232,10 @@ document.onkeyup = e => {
 
 // TODO: use english instead
 const moveCamera = () => {
-	if (haut 	  == true) viewY += 15
-	if (droite  == true) viewX -= 15
-	if (bas 		== true) viewY -= 15
-	if (gauche  == true) viewX += 15
+	if (haut 	  == true) viewY += CAMERA_SPEED
+	if (droite  == true) viewX -= CAMERA_SPEED
+	if (bas 		== true) viewY -= CAMERA_SPEED
+	if (gauche  == true) viewX += CAMERA_SPEED
 
   // if(Me.x > jeu.sizeX) {Me.x = jeu.sizeX; Me.translateX = -(jeu.sizeX - width/2) }
   // if(Me.x < 0        ) {Me.x = 0        ; Me.translateX =  width/2               }
