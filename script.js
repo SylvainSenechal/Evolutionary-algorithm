@@ -1,27 +1,33 @@
 'use strict';
+// TODO: USE SHADERS
 
 let genetic
 let ctx, canvas
 let width, height
-let sizeX = 1000
-let sizeY = 1000
 let viewX = 0
 let viewY = 0
 let haut, bas, droite, gauche
+
+
 // TODO: A mettre en parametre changeables ?
-const CAMERA_SPEED = 15 // TODO: A utiliser
+// Reproduce => baby in belly, mother loses size, father loses size when reproducing
+const CAMERA_SPEED = 15
+const MAP_SIZE_X = 4000
+const MAP_SIZE_Y = 4000
 const FOOD_SIZE = 5
 const FOOD_GAIN = 3
+const FOOD_SCARCITY = 0 // 1 => no food, 0 => food +/- = SIZE_INITIAL_FOOD
 const INIT_CREATURE_SIZE = 8
 const FOOD_LOSS_EPOCH = 100
-const SIZE_INITIAL_POPULATION = 10
-const SIZE_INITIAL_FOOD = 50
+const SIZE_INITIAL_POPULATION = 25000
+const SIZE_INITIAL_FOOD = 500
+const PI_TWO = 2 * Math.PI
 
 const init = () => {
   width = window.innerWidth
   height = window.innerHeight
 
-  canvas = document.getElementById('mon_canvas')
+  canvas = document.getElementById('canvas')
   ctx = canvas.getContext('2d')
   ctx.canvas.width = width
   ctx.canvas.height = height
@@ -36,6 +42,7 @@ const init = () => {
 const loop = () => {
   genetic.movePopulation() // Move the creatures + eventually eat food close enough
   genetic.incrementTimer() // Increment simulation timer
+  genetic.generateFood() // Add random food
 
   genetic.removeDead() // Remove the dead creatures
 
@@ -47,8 +54,8 @@ const loop = () => {
 class Creature {
   constructor() {
     this.gender = Math.random() > 0.5 ? "female" : "male"
-    this.x = Math.random() * sizeX
-    this.y = Math.random() * sizeY
+    this.x = Math.random() * MAP_SIZE_X
+    this.y = Math.random() * MAP_SIZE_Y
     this.speedX = 0
     this.speedY = 0
     this.belly = INIT_CREATURE_SIZE
@@ -100,7 +107,7 @@ class Genetic {
 
   initFood() {
     for (let i = 0; i < SIZE_INITIAL_FOOD; i++) {
-      this.food.push({id: this.idFood, x: Math.random() * sizeX, y: Math.random() * sizeY})
+      this.food.push({id: this.idFood, x: Math.random() * MAP_SIZE_X, y: Math.random() * MAP_SIZE_Y})
       this.idFood++
     }
   }
@@ -155,6 +162,14 @@ class Genetic {
     })
   }
 
+  generateFood() {
+    let ratioInitial = this.food.length / SIZE_INITIAL_FOOD
+    if (Math.random() > ratioInitial + FOOD_SCARCITY) {
+      this.food.push({id: this.idFood, x: Math.random() * MAP_SIZE_X, y: Math.random() * MAP_SIZE_Y})
+      this.idFood++
+    }
+  }
+
   draw() {
     ctx.clearRect(0, 0, width, height)
 
@@ -162,7 +177,7 @@ class Genetic {
     this.population.forEach( creature => {
       ctx.beginPath()
       ctx.fillStyle = creature.gender === "female" ? "#cc00aa" : "#0000dd"
-      ctx.arc(creature.x + viewX, creature.y + viewY, creature.belly, 0, 2*Math.PI)
+      ctx.arc(creature.x + viewX, creature.y + viewY, creature.belly, 0, PI_TWO)
       ctx.fill()
     })
 
@@ -170,7 +185,7 @@ class Genetic {
     ctx.strokeStyle = "#000000"
     this.food.forEach( food => {
       ctx.beginPath()
-      ctx.arc(food.x + viewX, food.y + viewY, FOOD_SIZE, 0, 2*Math.PI)
+      ctx.arc(food.x + viewX, food.y + viewY, FOOD_SIZE, 0, PI_TWO)
       ctx.stroke()
     })
 
